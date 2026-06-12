@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include "client.h"
 #include "server.h"
+#include <stdio.h>
 
 
 int main(int argc, char** argv) {
@@ -9,5 +10,6 @@ int main(int argc, char** argv) {
     Sleep(1000);
     sslClient("127.0.0.1", 4433);
 
+    getchar();
     return 0;
 }

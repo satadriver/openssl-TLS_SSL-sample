@@ -103,15 +103,16 @@ void sslClient(const char * host,int port)
     strcat(outbuf, host_header);
     strcat(outbuf, "Connection: close\r\n");
     strcat(outbuf, "\r\n");
-    err = SSL_write(ssl, outbuf, strlen(outbuf));
+    err = SSL_write(ssl, outbuf,(int) strlen(outbuf));
     //shutdown(sd, 1); /* send EOF to server */
     printf("(7) sent HTTP request over encrypted channel:\n\n%s\n", outbuf);
 
 
     /* (8) 通过ssl句柄读取服务器响应 */
-    printf("(8) got back %d bytes of HTTP response:\n");
-    err = SSL_read(ssl, inbuf, 1);
-    err = SSL_read(ssl, inbuf+1, sizeof(inbuf) - 2);
+    
+    int recvlen = SSL_read(ssl, inbuf, 1);
+    recvlen += SSL_read(ssl, inbuf+1, sizeof(inbuf) - 2);
+    printf("(8) got back %d bytes of HTTP response:\n", recvlen);
     //do {
     //    memset(inbuf, 0, sizeof(inbuf));
     //    err = SSL_read(ssl, inbuf, sizeof(inbuf) - 1);
