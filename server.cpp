@@ -1,0 +1,227 @@
+
+
+#include <iostream>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/aes.h>
+
+#include "client.h"
+
+#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "libssl.lib")
+#pragma comment(lib, "libcrypto.lib")
+
+#pragma warning(disable:4996)
+
+extern "C"
+{
+//#include <openssl/applink.c>
+};
+
+// 初始化 OpenSSL
+void init_openssl() {
+
+    SSL_library_init();             // <<< To clarify my initialization
+    OpenSSL_add_all_algorithms();   // <<< To clarify my initialization
+    SSL_load_error_strings();       // <<< To clarify my initialization
+    ERR_load_crypto_strings();      // <<< To clarify my initialization (2)
+    OpenSSL_add_all_ciphers();
+
+    SSL_load_error_strings();
+    OpenSSL_add_ssl_algorithms();
+
+    OpenSSL_add_all_ciphers();
+}
+
+// 清理 OpenSSL
+void cleanup_openssl() {
+    EVP_cleanup();
+}
+
+// 创建 SSL 上下文
+SSL_CTX* create_context() {
+    const SSL_METHOD* method = SSLv23_server_method();//SSLv23_server_method();
+    SSL_CTX* ctx = SSL_CTX_new(method);
+    if (!ctx) {
+        std::cerr << "Unable to create SSL context" << std::endl;
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+    return ctx;
+}
+
+// 配置 SSL 上下文
+void configure_context(SSL_CTX* ctx) {
+
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, 0);
+
+    int ret = SSL_CTX_load_verify_locations(ctx, "demo_tls_cert.pem", 0);
+    if (ret != 1)
+    {
+        return ;
+    }
+
+    SSL_CTX_set_default_passwd_cb_userdata(ctx, (void*)"");
+
+    // 加载证书和私钥
+    if (SSL_CTX_use_certificate_file(ctx, "demo_tls_cert.pem", SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+    if (SSL_CTX_use_PrivateKey_file(ctx, "demo_tls_key.pem", SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    ret = SSL_CTX_check_private_key(ctx);
+}
+
+
+bool cbc_encrypt( char* in, char* out, char* key, char* ivec, bool enc)
+{
+    if (enc)
+    {
+        AES_KEY aes_key;
+        if (AES_set_encrypt_key((const unsigned char*)key, 128, &aes_key) != 0)
+        {
+            return false;
+        }
+
+        AES_cbc_encrypt((const unsigned char*)in,
+            (unsigned char*)out,
+            48,
+            &aes_key,
+            (unsigned char*)ivec,
+            AES_ENCRYPT);
+        return true;
+    }
+    else
+    {
+        AES_KEY aes_key;
+        if (AES_set_decrypt_key((const unsigned char*)key, 16 * 8, &aes_key) != 0)
+        {
+            return false;
+        }
+
+        AES_cbc_encrypt((const unsigned char*)in,
+            (unsigned char*)out,
+            48,
+            &aes_key,
+            (unsigned char*)ivec,
+            AES_DECRYPT);
+
+        return true;
+    }
+}
+
+
+
+
+
+int __stdcall sslServer() {
+    //sslClient((char*)"www.baidu.com", 443);
+
+    // 初始化 Winsock
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "WSAStartup failed" << std::endl;
+        return 1;
+    }
+
+    // 初始化 OpenSSL
+    init_openssl();
+
+    // 创建 SSL 上下文
+    SSL_CTX* ctx = create_context();
+
+    SSL_CTX_set_security_level(ctx, 0);
+
+    configure_context(ctx);
+
+    // 创建套接字
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == INVALID_SOCKET) {
+        std::cerr << "Socket creation failed" << std::endl;
+        return 1;
+    }
+
+    // 绑定套接字
+    sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(4433); // 使用 4433 端口
+
+    if (bind(sock, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
+        std::cerr << "Bind failed" << std::endl;
+        closesocket(sock);
+        return 1;
+    }
+
+    // 监听连接
+    if (listen(sock, 16) == SOCKET_ERROR) {
+        std::cerr << "Listen failed" << std::endl;
+        closesocket(sock);
+        return 1;
+    }
+
+    std::cout << "Server listening on port 443..." << std::endl;
+
+    // 接受客户端连接
+    sockaddr_in client_addr;
+    int client_len = sizeof(client_addr);
+    SOCKET client_sock = accept(sock, (sockaddr*)&client_addr, &client_len);
+    if (client_sock == INVALID_SOCKET) {
+        std::cerr << "Accept failed" << std::endl;
+        closesocket(sock);
+        return 1;
+    }
+
+    std::cout << "Client connected" << std::endl;
+
+    // 创建 SSL 对象
+    SSL* ssl = SSL_new(ctx);
+    SSL_set_fd(ssl, client_sock);
+    
+    int ret = 0;
+    while (1) 
+    {
+        ret = SSL_accept(ssl);
+        if (ret> 0) {
+            //return -1;
+            break;
+        }
+    }
+    // 执行 TLS/SSL 握手
+    if (ret <= 0) {
+        std::cerr << "SSL handshake failed" << std::endl;
+        ERR_print_errors_fp(stderr);
+    }
+    else {
+        std::cout << "SSL handshake successful" << std::endl;
+
+        // 与客户端通信
+        char buf[1024];
+        int bytes = SSL_read(ssl, buf, sizeof(buf));
+        if (bytes > 0) {
+            buf[bytes] = '\0';
+            std::cout << "Received: " << buf << std::endl;
+
+            // 发送响应
+            const char* response = "Hello from server!";
+            SSL_write(ssl, response, strlen(response));
+        }
+    }
+
+    // 清理
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    closesocket(client_sock);
+    closesocket(sock);
+    SSL_CTX_free(ctx);
+    cleanup_openssl();
+    WSACleanup();
+
+    return 0;
+}
