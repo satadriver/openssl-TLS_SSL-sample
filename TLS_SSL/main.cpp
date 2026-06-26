@@ -4,8 +4,11 @@
 #include <stdio.h>
 #include "iocpserver.h"
 #include "main.h"
+#include "iocp_test.h"
 
 int main(int argc, char** argv) {
+    iocp_test();
+
     //CloseHandle(CreateThread(0,0, (LPTHREAD_START_ROUTINE) sslServer,0,0,0));
 
     CloseHandle(CreateThread(0, 0, (LPTHREAD_START_ROUTINE)IocpServerEntry, 0, 0, 0));

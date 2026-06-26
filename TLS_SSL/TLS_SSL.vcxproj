@@ -21,12 +21,14 @@
   <ItemGroup>
     <ClInclude Include="client.h" />
     <ClInclude Include="iocpServer.h" />
+    <ClInclude Include="iocp_test.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="server.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="client.cpp" />
     <ClCompile Include="iocpServer.cpp" />
+    <ClCompile Include="iocp_test.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="server.cpp" />
   </ItemGroup>
